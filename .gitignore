@@ -1,0 +1,29 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Model & data (jangan di-commit, file besar)
+ml/artifacts/
+ml/data/
+*.joblib
+*.pt
+*.bin
+*.safetensors
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Database & OS
+*.sqlite3
+pgdata/
+.DS_Store
