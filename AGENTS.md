@@ -13,42 +13,51 @@ Pemilik repo adalah mahasiswa yang ingin memahami hasilnya. Jelaskan keputusan p
 
 ```
 sentiment-dashboard/
+├── .venv/           # SATU virtual env untuk ml/ dan backend/ (TIDAK di-commit)
 ├── ml/              # training & evaluasi model (Python)
 │   ├── data/        # dataset (TIDAK di-commit)
-│   └── artifacts/   # model hasil training (TIDAK di-commit)
-├── backend/         # FastAPI + SQLAlchemy + Alembic + PostgreSQL
+│   ├── artifacts/   # model + metrics hasil training (TIDAK di-commit)
+│   └── preprocess.py  # dipakai training DAN backend (diimpor, jangan disalin)
+├── backend/         # FastAPI + SQLAlchemy + Alembic + SQLite
 ├── frontend/        # Next.js (App Router) + Tailwind + Recharts
-├── docker-compose.yml   # PostgreSQL untuk dev lokal
 ├── .env.example
 ├── AGENTS.md
 └── README.md
 ```
 
+Tidak ada Docker. Dev lokal memakai SQLite (`DATABASE_URL=sqlite:///./sentiment.sqlite3`).
+PostgreSQL bisa dipakai nanti untuk deploy cukup dengan mengganti `DATABASE_URL` (+ driver),
+jadi jangan memakai tipe/fungsi SQL khusus satu database.
+
 ## Stack
 
 - **ML**: Python 3.11+, pandas, scikit-learn, joblib. IndoBERT lewat Hugging Face Transformers (training dijalankan di Google Colab, bukan lokal).
-- **Backend**: FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PostgreSQL, pytest.
+- **Backend**: FastAPI, Pydantic v2, pydantic-settings, SQLAlchemy 2.x, Alembic, SQLite (dev), pytest.
 - **Frontend**: Next.js (App Router, TypeScript), Tailwind CSS, Recharts.
+
+Versi `scikit-learn` di `ml/requirements.txt` dan `backend/requirements.txt` HARUS identik
+(file `.joblib` sensitif terhadap versi).
 
 ## Perintah penting
 
 Sesuaikan jika struktur berubah, dan perbarui bagian ini di commit yang sama.
 
 ```bash
-# Database lokal
-docker compose up -d db
+# Virtual env tunggal di root repo (jalankan dari root)
+python -m venv .venv
+source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -r ml/requirements.txt -r backend/requirements.txt
 
-# ML
-cd ml && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python train_baseline.py          # train + evaluasi baseline
+# ML (dari root)
+python ml/download_data.py         # unduh SmSA ke ml/data/
+python ml/train_baseline.py        # train + evaluasi baseline -> ml/artifacts/
 
-# Backend
-cd backend && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# Backend (dari backend/)
+cd backend
 alembic upgrade head
 uvicorn app.main:app --reload     # http://localhost:8000/docs
-pytest -q                          # jalankan tes
+pytest -q                          # semua tes (backend + ml/tests)
+ruff check . ../ml && ruff format --check . ../ml
 
 # Frontend
 cd frontend

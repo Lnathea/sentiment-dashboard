@@ -17,23 +17,23 @@ Analisis sentimen teks berbahasa Indonesia (positif / netral / negatif) dengan d
 ```
 Next.js (dashboard)  →  FastAPI (inference)  →  Model (scikit-learn / IndoBERT)
                                ↓
-                          PostgreSQL
+                     SQLite (dev lokal) / PostgreSQL (deploy, nanti)
 ```
 
 | Bagian     | Teknologi                                         |
 |------------|---------------------------------------------------|
 | `ml/`      | Python, pandas, scikit-learn, Hugging Face        |
-| `backend/` | FastAPI, SQLAlchemy, Alembic, PostgreSQL, pytest  |
+| `backend/` | FastAPI, SQLAlchemy, Alembic, SQLite, pytest      |
 | `frontend/`| Next.js (App Router), TypeScript, Tailwind, Recharts |
 
 ## Struktur repo
 
 ```
 sentiment-dashboard/
+├── .venv/       # satu virtual env untuk ml/ dan backend/ (tidak di-commit)
 ├── ml/          # training & evaluasi model
 ├── backend/     # REST API
 ├── frontend/    # dashboard web
-├── docker-compose.yml
 ├── .env.example
 ├── AGENTS.md    # panduan untuk AI agent
 └── README.md
@@ -41,41 +41,44 @@ sentiment-dashboard/
 
 ## Memulai
 
+Proyek berjalan **tanpa Docker**. Database dev lokal adalah file SQLite.
+
 ### Prasyarat
 
-- Python 3.11+
-- Node.js 20+
-- Docker (untuk PostgreSQL lokal)
+- Python 3.11+ (diuji dengan 3.13)
+- Node.js 20+ (untuk frontend, Fase 3)
 
 ### 1. Konfigurasi environment
 
 ```bash
-cp .env.example .env
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
 # lalu sesuaikan nilainya
 ```
 
-### 2. Database
+### 2. Virtual environment (satu untuk ml/ dan backend/)
+
+Jalankan dari root repo:
 
 ```bash
-docker compose up -d db
+python -m venv .venv
+source .venv/bin/activate         # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -r ml/requirements.txt -r backend/requirements.txt
 ```
 
-### 3. Latih model baseline
+### 3. Unduh data dan latih model baseline
 
 ```bash
-cd ml
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python train_baseline.py
+python ml/download_data.py        # SmSA -> ml/data/smsa/
+python ml/train_baseline.py       # model + metrics -> ml/artifacts/
 ```
+
+Detail ada di [`ml/README.md`](ml/README.md).
 
 ### 4. Jalankan backend
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
+alembic upgrade head              # membuat backend/sentiment.sqlite3
 uvicorn app.main:app --reload
 ```
 
@@ -105,7 +108,7 @@ Buka http://localhost:3000
 ## Dataset dan model
 
 - Dataset: SmSA dari [IndoNLU](https://github.com/IndoNLP/indonlu) (positif / netral / negatif)
-- Dataset dan file model **tidak** disimpan di repo ini. Lihat `ml/README.md` (akan ditambahkan) untuk cara mengunduhnya.
+- Dataset dan file model **tidak** disimpan di repo ini. Lihat `ml/README.md` untuk cara mengunduhnya.
 
 ## Hasil evaluasi
 
@@ -115,6 +118,10 @@ _Akan diisi setelah training selesai._
 |----------------|----------|----------|
 | TF-IDF + SVM   | –        | –        |
 | IndoBERT       | –        | –        |
+
+## Deploy dengan PostgreSQL (nanti)
+
+Kode database ditulis portabel (SQLAlchemy + Alembic, tanpa tipe/fungsi khusus satu database). Untuk deploy cukup pasang driver (`pip install psycopg`) dan ganti `DATABASE_URL`, misalnya `postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME`, lalu jalankan `alembic upgrade head`.
 
 ## Roadmap
 
