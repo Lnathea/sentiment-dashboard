@@ -8,6 +8,9 @@ Semua perintah dijalankan dari **root repo** dengan `.venv` aktif (lihat [README
 | `download_data.py` | Mengunduh SmSA ke `ml/data/smsa/` dan mencatat asal-usulnya |
 | `preprocess.py` | Normalisasi teks. **Dipakai training dan backend** (diimpor, jangan disalin) |
 | `train_baseline.py` | Memilih model di validation, mengevaluasi di test, menyimpan artefak |
+| `finetune_indobert.py` | Fine-tune IndoBERT (dijalankan di Colab GPU), lihat [bagian ini](#fine-tune-indobert-di-colab) |
+| `requirements-indobert.txt` | Dependensi untuk Colab saja (jangan dipasang di `.venv` lokal) |
+| `notebooks/colab_finetune_indobert.ipynb` | Notebook pemanggil untuk Colab |
 | `tests/` | Tes untuk preprocessing |
 
 `ml/data/` dan `ml/artifacts/` **tidak di-commit** (lihat `.gitignore`).
@@ -138,3 +141,76 @@ $m.test.accuracy; $m.test.macro_f1
 - Judul gambar memuat classifier, `C`, accuracy, dan macro-F1 pada test.
 
 Angka di gambar sama persis dengan `test.confusion_matrix.matrix` di `metrics.json`.
+
+## Fine-tune IndoBERT di Colab
+
+Training IndoBERT butuh GPU, jadi dijalankan di Google Colab, **bukan** di komputer lokal. Skrip `finetune_indobert.py` memakai data split resmi SmSA dan fungsi `preprocess()` yang sama dengan baseline, lalu memilih epoch terbaik dari **macro-F1 di validation**. Test dievaluasi sekali di akhir.
+
+> Hasil evaluasi IndoBERT belum ada sampai Anda menjalankannya. Tidak ada angka yang disalin dari tempat lain.
+
+### Langkah
+
+1. Pastikan branch `fase-2-indobert` sudah di-push ke GitHub (notebook mengkloning repo publik).
+2. Buka notebook dari GitHub di Colab:
+   `https://colab.research.google.com/github/Lnathea/sentiment-dashboard/blob/fase-2-indobert/ml/notebooks/colab_finetune_indobert.ipynb`
+   (atau Colab → *File → Open notebook → GitHub*, tempel `Lnathea/sentiment-dashboard`, pilih branch dan berkas notebook).
+3. **Runtime → Change runtime type → T4 GPU.** Variabel `BRANCH` di sel pertama bisa diubah jika memakai branch lain.
+4. **Runtime → Run all.** Notebook akan: cek GPU, `git clone`, `pip install -r ml/requirements-indobert.txt`, `python ml/download_data.py`, `python ml/finetune_indobert.py`, lalu membuat `indobert_artifacts.zip` dan mengunduhnya.
+5. Di komputer lokal:
+   - ekstrak zip ke `ml/artifacts/indobert/` (isi: `model.safetensors`, `config.json`, berkas tokenizer, `metrics_indobert.json`, `confusion_matrix_indobert.png`);
+   - **salin** `metrics_indobert.json` dan `confusion_matrix_indobert.png` ke `ml/artifacts/`.
+
+   ```powershell
+   # Windows PowerShell (dari root repo; sesuaikan lokasi zip)
+   Expand-Archive "$HOME\Downloads\indobert_artifacts.zip" ml\artifacts\indobert -Force
+   Copy-Item ml\artifacts\indobert\metrics_indobert.json ml\artifacts\
+   Copy-Item ml\artifacts\indobert\confusion_matrix_indobert.png ml\artifacts\
+   ```
+
+   ```bash
+   # bash
+   unzip -o ~/Downloads/indobert_artifacts.zip -d ml/artifacts/indobert
+   cp ml/artifacts/indobert/metrics_indobert.json ml/artifacts/indobert/confusion_matrix_indobert.png ml/artifacts/
+   ```
+
+Isi `ml/artifacts/` tidak di-commit.
+
+### Parameter
+
+Nilai bawaan (ubah lewat argumen CLI, mis. `python ml/finetune_indobert.py --epochs 3 --batch-size 16 --grad-accum 2`):
+
+| Argumen | Bawaan |
+|---------|--------|
+| `--model-name` | `indobenchmark/indobert-base-p1` |
+| `--max-length` | 128 |
+| `--learning-rate` | 2e-5 |
+| `--batch-size` (per perangkat) / `--grad-accum` | 32 / 1 |
+| `--epochs` | 4 |
+| `--weight-decay` / `--warmup-ratio` | 0,01 / 0,1 |
+| `--seed` | 42 |
+| `--output-dir` | `ml/artifacts/indobert` |
+
+fp16 aktif otomatis jika GPU tersedia (`--no-fp16` untuk mematikan). Jika memori GPU kurang, turunkan `--batch-size` dan naikkan `--grad-accum` agar batch efektifnya tetap 32.
+
+### Label
+
+Model memakai `id2label = {0: "negative", 1: "neutral", 2: "positive"}` (tersimpan di `config.json`). Laporan (`metrics_indobert.json`, confusion matrix) memakai urutan baseline `positive, neutral, negative` agar kedua model bisa dibandingkan langsung.
+
+### Membaca `metrics_indobert.json`
+
+Skemanya sama dengan `metrics.json` baseline (lihat [bagian 3](#3-membaca-metricsjson)), dengan perbedaan:
+
+- `hyperparameters` menggantikan `tfidf`.
+- `validation.candidates` berisi **satu entri per epoch** (`params.epoch`). `log_loss` adalah cross-entropy rata-rata di validation, dan `fit_seconds` bernilai `null` (tidak diukur per epoch). `selected_index` menunjuk epoch terbaik.
+- `model` memuat tambahan `model_name` (`indobert`), `base_model`, `id2label`, `best_epoch`, `torch_version`, `transformers_version`, dan `device`.
+- `data_notes` sama dengan baseline (jumlah teks test yang persis ada di train).
+
+### Tes lokal
+
+Tes untuk fungsi bantunya berjalan tanpa torch (bagian yang butuh torch otomatis di-skip):
+
+```bash
+cd backend
+pytest -q ../ml/tests/test_finetune_indobert.py
+```
+
