@@ -42,29 +42,40 @@ Versi `scikit-learn` di `ml/requirements.txt` dan `backend/requirements.txt` HAR
 
 Sesuaikan jika struktur berubah, dan perbarui bagian ini di commit yang sama.
 
+Urutan wajib: venv → training → `alembic upgrade head` → uvicorn.
+Backend butuh `ml/artifacts/tfidf_svm.joblib` saat start, jadi training harus lebih dulu.
+
 ```bash
-# Virtual env tunggal di root repo (jalankan dari root)
+# 1. Virtual env tunggal di root repo (jalankan dari root)
 python -m venv .venv
-source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+source .venv/bin/activate          # bash/macOS/Linux
+# .\.venv\Scripts\Activate.ps1     # Windows PowerShell
 pip install -r ml/requirements.txt -r backend/requirements.txt
+cp .env.example .env               # PowerShell: Copy-Item .env.example .env
 
-# ML (dari root)
-python ml/download_data.py         # unduh SmSA ke ml/data/
-python ml/train_baseline.py        # train + evaluasi baseline -> ml/artifacts/
+# 2. ML (dari root)
+python ml/download_data.py         # unduh SmSA ke ml/data/smsa/
+python ml/train_baseline.py        # train + evaluasi -> ml/artifacts/
 
-# Backend (dari backend/)
+# 3. Backend (dari backend/)
 cd backend
-alembic upgrade head
-uvicorn app.main:app --reload     # http://localhost:8000/docs
-pytest -q                          # semua tes (backend + ml/tests)
+alembic upgrade head               # membuat backend/sentiment.sqlite3
+uvicorn app.main:app --reload      # http://localhost:8000/docs
+
+# 4. Tes dan lint (dari backend/)
+pytest -q                          # backend/tests + ml/tests (lihat pytest.ini)
 ruff check . ../ml && ruff format --check . ../ml
 
-# Frontend
-cd frontend
+# 5. Frontend (Fase 3, dari frontend/)
+cd ../frontend
 npm install
 npm run dev                        # http://localhost:3000
 npm run lint && npm run build      # cek sebelum commit
 ```
+
+Tanpa mengaktifkan venv (PowerShell): `.\.venv\Scripts\python.exe -m pytest -q`.
+`cd` ke `backend/` wajib untuk alembic/uvicorn/pytest karena `alembic.ini` dan
+`pytest.ini` ada di sana.
 
 ## Aturan kerja
 
