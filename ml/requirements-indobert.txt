@@ -1,0 +1,17 @@
+# Dependensi fine-tuning IndoBERT di Google Colab (ml/finetune_indobert.py).
+# Dipasang di Colab, BUKAN di .venv lokal. Terpisah dari ml/requirements.txt.
+#
+# torch TIDAK dicantumkan: Colab sudah menyediakan torch yang cocok dengan
+# driver GPU-nya. Memasang torch lain dari sini bisa merusak runtime.
+# Jika menjalankan di luar Colab, pasang torch sendiri lebih dulu
+# (lihat https://pytorch.org/get-started/locally/).
+#
+# Sengaja memakai batas bawah saja (bukan versi dikunci) agar tidak bentrok
+# dengan paket bawaan Colab. Versi yang terpakai dicatat di metrics_indobert.json.
+transformers>=4.46
+accelerate>=0.26
+safetensors>=0.4
+scikit-learn
+matplotlib
+pandas
+numpy
